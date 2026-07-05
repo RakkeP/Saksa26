@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="fi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Saksa26 — Frankfurt &amp; Rein-laakso</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html { height: 100%; }
+    body { font-family: 'Segoe UI', sans-serif; background: #1a1a2e; color: #eee; height: 100%; display: flex; flex-direction: column; }
+    #header { padding: 10px 16px; background: #16213e; border-bottom: 1px solid #0f3460; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; flex-shrink: 0; }
+    #header h1 { font-size: 1.2rem; color: #e94560; letter-spacing: 1px; }
+    #header p { font-size: 0.78rem; color: #aaa; }
+    #map { flex: 1; min-height: 0; }
+
+    /* Legend */
+    #legend { position: absolute; bottom: 16px; right: 10px; z-index: 1000; background: rgba(22,33,62,0.95); border: 1px solid #0f3460; border-radius: 8px; min-width: 210px; backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); max-height: 80vh; overflow-y: auto; }
+    #legend-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px 6px 14px; cursor: pointer; user-select: none; }
+    #legend h3 { font-size: 0.8rem; color: #e94560; text-transform: uppercase; letter-spacing: 1px; margin: 0; }
+    #legend-toggle { font-size: 1rem; color: #e94560; }
+    #legend-body { padding: 0 14px 10px 14px; }
+    #legend-body.collapsed { display: none; }
+    .legend-row { display: flex; align-items: center; gap: 8px; margin: 5px 0; font-size: 0.78rem; cursor: pointer; border-radius: 4px; padding: 2px 4px; transition: background 0.15s; }
+    .legend-row:hover { background: rgba(255,255,255,0.07); }
+    .legend-line { width: 28px; height: 4px; border-radius: 2px; flex-shrink: 0; }
+    .legend-sub { color: #888; font-size: 0.7rem; margin-left: auto; padding-left: 4px; }
+
+    /* GPS */
+    #gps-btn { background: #0f3460; border: 1px solid #e94560; color: #eee; padding: 5px 11px; border-radius: 5px; cursor: pointer; font-size: 0.78rem; display: flex; align-items: center; gap: 5px; transition: background 0.2s; flex-shrink: 0; white-space: nowrap; }
+    #gps-btn:hover { background: #1a4a80; }
+    #gps-btn.active { background: #e94560; border-color: #e94560; color: #fff; }
+    #gps-btn.searching { border-color: #ffa726; color: #ffa726; }
+    .gps-marker { position: relative; width: 20px; height: 20px; }
+    .gps-marker-dot { position: absolute; top: 4px; left: 4px; width: 12px; height: 12px; border-radius: 50%; background: #4a90d9; border: 2px solid #fff; box-shadow: 0 0 6px rgba(74,144,217,0.9); z-index: 2; }
+    .gps-marker-ring { position: absolute; top: 0; left: 0; width: 20px; height: 20px; border-radius: 50%; background: rgba(74,144,217,0.35); animation: gps-pulse 1.8s ease-out infinite; }
+    @keyframes gps-pulse { 0% { transform: scale(0.6); opacity: 1; } 100% { transform: scale(2.2); opacity: 0; } }
+
+    /* Leaflet dark theme */
+    .leaflet-control-layers { background: rgba(22,33,62,0.95) !important; border: 1px solid #0f3460 !important; border-radius: 8px !important; backdrop-filter: blur(4px); }
+    .leaflet-control-layers-expanded { padding: 8px 14px 10px !important; min-width: 210px; }
+    .leaflet-control-layers label { color: #eee !important; font-size: 0.78rem !important; margin: 5px 0 !important; cursor: pointer; display: flex !important; align-items: center !important; gap: 5px !important; }
+    .leaflet-control-layers span { color: #eee !important; }
+    .leaflet-control-layers-separator { border-color: #0f3460 !important; margin: 6px 0 !important; }
+    .leaflet-control-layers-toggle { background-color: #16213e !important; border: 1px solid #e94560 !important; border-radius: 4px !important; }
+
+    /* Station labels */
+    .station-label { background: #1a1a2e; color: #fff; border-radius: 4px; padding: 3px 7px; font-size: 0.63rem; font-weight: bold; white-space: nowrap; box-shadow: 0 2px 7px rgba(0,0,0,0.7); border-left: 3px solid #e94560; cursor: pointer; }
+
+    /* POI dots */
+    .poi-dot { width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 2px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,0.6); font-size: 15px; cursor: pointer; }
+
+    /* Castle icons */
+    .castle-icon { width: 48px; height: 48px; border-radius: 50%; background: #2d1a06; border: 3px solid #ffd580; display: flex; align-items: center; justify-content: center; font-size: 28px; box-shadow: 0 3px 12px rgba(0,0,0,0.9); cursor: pointer; }
+    .castle-name-tag { background: rgba(45,26,6,0.93); color: #ffd580; border-radius: 3px; padding: 2px 6px; font-size: 0.62rem; font-weight: bold; white-space: nowrap; text-align: center; margin-top: 2px; border: 1px solid rgba(255,213,128,0.5); cursor: pointer; }
+
+    /* Accommodation — pentagon */
+    .accom-pentagon { width: 40px; height: 40px; clip-path: polygon(50% 0%, 100% 38%, 82% 100%, 18% 100%, 0% 38%); display: flex; align-items: center; justify-content: center; font-size: 20px; line-height: 1; cursor: pointer; }
+
+    /* Rhine stop labels */
+    .rhine-label { background: #0d3349; color: #fff; border-radius: 4px; padding: 3px 7px; font-size: 0.62rem; font-weight: bold; white-space: nowrap; box-shadow: 0 2px 6px rgba(0,0,0,0.65); border-left: 3px solid #4dd0e1; cursor: pointer; }
+
+    /* Potential markers */
+    .potential-icon { width: 46px; height: 46px; border-radius: 6px; background: #1a0033; border: 3px solid #ce93d8; display: flex; align-items: center; justify-content: center; font-size: 24px; box-shadow: 0 3px 12px rgba(0,0,0,0.9); cursor: pointer; transform: rotate(45deg); }
+    .potential-icon span { transform: rotate(-45deg); display: block; }
+    .potential-name-tag { background: rgba(26,0,51,0.93); color: #ce93d8; border-radius: 3px; padding: 2px 6px; font-size: 0.62rem; font-weight: bold; white-space: nowrap; text-align: center; margin-top: 4px; border: 1px solid rgba(206,147,216,0.5); cursor: pointer; }
+
+    @media (max-width: 600px) {
+      #header { padding: 6px 10px; }
+      #header h1 { font-size: 0.95rem; }
+      #header p { display: none; }
+      #legend { bottom: 10px; right: 8px; min-width: 165px; max-width: 80vw; }
+    }
+  </style>
+</head>
+<body>
+<div id="header">
+  <h1>SAKSA26 — Frankfurt &amp; Rein-laakso</h1>
+  <p>7 yötä &nbsp;·&nbsp; Rüdesheim 5 yötä + Frankfurt 2 yötä &nbsp;·&nbsp; Deutschland Ticket &nbsp;·&nbsp; Rein-laakson linnat &amp; viini</p>
+  <button id="gps-btn" onclick="toggleGPS()" title="Näytä sijaintisi kartalla">📍 Sijainti</button>
+</div>
+<div id="map"></div>
+<div id="legend">
+  <div id="legend-header" onclick="toggleLegend()">
+    <h3>Vaiheet</h3>
+    <span id="legend-toggle">▲</span>
+  </div>
+  <div id="legend-body"></div>
+</div>
+<script>
+const map = L.map('map', { zoomControl: true }).setView([50.05, 8.2], 9);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '© OpenStreetMap contributors', maxZoom: 19
+}).addTo(map);
+
+// ── LAYERS ────────────────────────────────────────────────────────────────────
+const layerRoutes        = L.layerGroup().addTo(map);
+const layerMarkers       = L.layerGroup().addTo(map);
+const layerCastles       = L.layerGroup().addTo(map);
+const layerRhineStops    = L.layerGroup().addTo(map);
+const layerPOI           = L.layerGroup().addTo(map);
+const layerAccommodation = L.layerGroup().addTo(map);
+const layerPotential     = L.layerGroup().addTo(map);
+
+// ── ROUTE PHASES ─────────────────────────────────────────────────────────────
+const phases = [
+  {
+    label: 'Saapuminen — Lentokenttä → Rüdesheim',
+    sub: 'S9 + RB10, ~1h 23min',
+    color: '#9e9e9e',
+    coords: [
+      [50.0526, 8.5698],  // Frankfurt Airport Regionalbf T1
+      [50.0782, 8.5952],  // Frankfurt Stadion
+      [50.1073, 8.6631],  // Frankfurt Hbf
+      [50.0944, 8.5498],  // Frankfurt Höchst
+      [50.0760, 8.4668],  // Flörsheim
+      [50.0712, 8.2446],  // Wiesbaden Hbf (vaihto S9→RB10)
+      [50.0533, 8.1694],  // Bieberich
+      [50.0300, 8.1150],  // Eltville am Rhein
+      [49.9985, 8.0278],  // Oestrich-Winkel
+      [49.9793, 7.9245]   // Rüdesheim am Rhein
+    ]
+  },
+  {
+    label: 'Rein-laakso — päiväretki pohjoiseen',
+    sub: 'Rüdesheim → Boppard, oikea ranta (RB10)',
+    color: '#4caf50',
+    coords: [
+      [49.9793, 7.9245],  // Rüdesheim (oikea ranta)
+      [50.0064, 7.8955],  // Assmannshausen (oikea ranta)
+      [50.0380, 7.8131],  // Lorch am Rhein (oikea ranta)
+      [50.0852, 7.7660],  // Kaub (oikea ranta, Pfalzgrafenstein-saari)
+      [50.1556, 7.7226],  // Sankt Goarshausen (oikea ranta, vastapäätä Sankt Goaria)
+      [50.2313, 7.5918]   // Boppard
+    ]
+  },
+  {
+    label: 'Päiväretki — Marksburg &amp; Koblenz',
+    sub: 'Boppard → Braubach → Koblenz, RB10',
+    color: '#ce93d8',
+    coords: [
+      [50.2313, 7.5918],  // Boppard
+      [50.2560, 7.6370],  // Braubach (Marksburg)
+      [50.3536, 7.5886]   // Koblenz Hbf
+    ]
+  },
+  {
+    label: 'Päiväretki — Wiesbaden',
+    sub: 'Rüdesheim → Wiesbaden, RB10',
+    color: '#ff9800',
+    coords: [
+      [49.9793, 7.9245],  // Rüdesheim
+      [49.9985, 8.0278],  // Oestrich-Winkel
+      [50.0300, 8.1150],  // Eltville
+      [50.0712, 8.2446]   // Wiesbaden Hbf
+    ]
+  },
+  {
+    label: 'Rüdesheim → Frankfurt',
+    sub: 'RB10 + S9, yö 5→6',
+    color: '#9e9e9e',
+    coords: [
+      [49.9793, 7.9245],  // Rüdesheim
+      [49.9985, 8.0278],  // Oestrich-Winkel
+      [50.0300, 8.1150],  // Eltville
+      [50.0712, 8.2446],  // Wiesbaden Hbf
+      [50.0760, 8.4668],  // Flörsheim
+      [50.0944, 8.5498],  // Frankfurt Höchst
+      [50.1073, 8.6631]   // Frankfurt Hbf
+    ]
+  },
+  {
+    label: 'Frankfurt',
+    sub: '2 yötä, kaupunkikierros',
+    color: '#2196f3',
+    coords: [
+      [50.1073, 8.6631],  // Frankfurt Hbf
+      [50.1109, 8.6822],  // Römerberg
+      [50.1126, 8.6868],  // Kaiserdom
+      [50.1069, 8.6882],  // Eiserner Steg
+      [50.1173, 8.6856],  // Bethmann Park (kiinalainen puutarha)
+      [50.1263, 8.6611],  // Grüneburg Park
+      [50.1253, 8.6546]   // Palmengarten
+    ]
+  }
+];
+
+phases.forEach((p, i) => {
+  const poly = L.polyline(p.coords, { color: p.color, weight: 4, opacity: 0.85 }).addTo(layerRoutes);
+
+  // Start & end markers for travel routes (not city loop)
+  if (i === 0 || i === 2 || i === 3) {
+    const first = p.coords[0], last = p.coords[p.coords.length - 1];
+    L.circleMarker(first, { radius: 6, color: '#fff', weight: 2, fillColor: p.color, fillOpacity: 1 }).addTo(layerMarkers);
+    L.circleMarker(last,  { radius: 6, color: '#fff', weight: 2, fillColor: p.color, fillOpacity: 1 }).addTo(layerMarkers);
+  }
+
+  // Legend row
+  const row = document.createElement('div');
+  row.className = 'legend-row';
+  row.innerHTML = `<div class="legend-line" style="background:${p.color}"></div><span>${p.label}</span><span class="legend-sub">${p.sub}</span>`;
+  row.addEventListener('click', () => map.fitBounds(poly.getBounds(), { padding: [30,30] }));
+  document.getElementById('legend-body').appendChild(row);
+});
+
+// ── KEY STATIONS ─────────────────────────────────────────────────────────────
+const stations = [
+  { lat:50.0526, lon:8.5698,
+    popup:'<b>✈️ Frankfurt (M) Flughafen Regionalbf — Terminal 1</b><br>Lähtöpiste. Ota S9 kohti Wiesbadenia.<br><i>Vaihto RB10:een Wiesbadenissa.</i>' },
+  { lat:50.0712, lon:8.2446,
+    popup:'<b>🚆 Wiesbaden Hbf — vaihtoasema</b><br>Vaihda S9 → RB10 täällä.<br>RB10 vie Rein-laaksoon: Eltville → Oestrich-Winkel → Rüdesheim.<br><i>Myös päiväretkien lähtöpiste Frankfurtista.</i>' },
+  { lat:50.1073, lon:8.6631,
+    popup:'<b>🚆 Frankfurt Hauptbahnhof</b><br>S9-asema. Frankfurt-vaiheen majoituksen lähellä.<br><b>Das Wirtshaus</b> — ravintola laiturin 18 takana, heti asemalla.' },
+];
+
+stations.forEach(s => {
+  const icon = L.divIcon({ html: `<div class="station-label">🚆 ${s.popup.match(/<b>(.*?)<\/b>/)[1].replace(/^.*?— /, '')}</div>`, className: '', iconAnchor: [0, 12] });
+  L.marker([s.lat, s.lon], { icon, zIndexOffset: 200 }).addTo(layerMarkers).bindPopup(s.popup);
+});
+
+// ── RHINE VALLEY STOPS ───────────────────────────────────────────────────────
+const rhineStops = [
+  { lat:50.0577, lon:7.7738, name:'Bacharach',
+    popup:'<b>⚓ Bacharach</b><br>Viehättävä keskiaikainen kaupunki Reinin rannalla.<br>Puolalainen kaari, muuri, vinovinyylit.<br><i>RB10 pysähtyy täällä — helppo päiväkohde.</i>' },
+  { lat:50.1051, lon:7.7282, name:'Oberwesel',
+    popup:'<b>⚓ Oberwesel</b><br>Kaupunki jossa on yksi Reinin parhaista linna-näkymistä.<br>Schönburg-linna yläpuolella.<br><i>~25 min Rüdesheimistä junalla.</i>' },
+  { lat:50.1336, lon:7.7262, name:'Loreley ⬆️',
+    popup:'<b>🪨 Loreley-kukkula</b><br>Kuuluisa 132 m korkea kallio Reinillä.<br>Parhaat näkymät: lauttaristeily tai polku huipulle.<br><i>Lähin asema: Sankt Goarshausen vastakkaisella rannalla.</i>' },
+  { lat:50.1526, lon:7.7113, name:'Sankt Goar',
+    popup:'<b>⚓ Sankt Goar</b><br>Pieni kylä Rheinfels-linnan juurella.<br>Rheinfels (raunio) on yksi alueen suurimmista linnoista.<br><i>~35 min Rüdesheimistä.</i>' },
+  { lat:50.2313, lon:7.5918, name:'Boppard',
+    popup:'<b>⚓ Boppard</b><br>Vanha roomalainen kaupunki Reinillä. Tuolistossa kaareva jokilahti.<br>Chairlift Vierseenblick-näköalapaikalle suositellaan.<br><i>~45 min Rüdesheimistä.</i>' },
+];
+
+rhineStops.forEach(r => {
+  const icon = L.divIcon({ html: `<div class="rhine-label">⚓ ${r.name}</div>`, className: '', iconAnchor: [0, 12] });
+  L.marker([r.lat, r.lon], { icon, zIndexOffset: 250 }).addTo(layerRhineStops).bindPopup(r.popup);
+});
+
+// ── CASTLES ───────────────────────────────────────────────────────────────────
+const castles = [
+  { lat:49.99367, lon:7.85887, dLat:0.007, dLon:-0.022, name:'Burg Rheinstein',
+    popup:'<b>🏰 Burg Rheinstein</b><br>Neo-goottinen linna suoraan Reinin yläpuolella.<br>Sisäänpääsy ~5 €. Upea näkymä joelle.<br><i>Lähellä Assmannshausenia, ~3 km Rüdesheimistä.</i>' },
+  { lat:50.00658, lon:7.85345, dLat:-0.005, dLon:-0.022, name:'Burg Reichenstein',
+    popup:'<b>🏰 Burg Reichenstein</b><br>Hyvin säilynyt linna Trechtingshausenissa.<br>Nykyisin hotelli, ravintola ja museo.<br><i>Lähellä Burg Rheinsteinia — sama päiväretki.</i>' },
+  { lat:50.27234, lon:7.64960, dLat:0.006, dLon:0.022, name:'Marksburg ⭐',
+    popup:'<b>🏰 Marksburg — suositus!</b><br>AINOA alkuperäinen valloittamaton Rein-linna.<br>Braubach, ~4 km Boppardin pohjoispuolella.<br>Opastettu kierros: ~8 €.<br><i>Pääset junalla Braubachiin tai kävelemällä Boppardista.</i>' },
+  { lat:50.30341, lon:7.59222, dLat:0.005, dLon:-0.022, name:'Stolzenfels',
+    popup:'<b>🏰 Schloss Stolzenfels</b><br>Preussilainen neo-goottinen linna Koblenzin eteläpuolella.<br>Hyvä pari Marksburgin kanssa.<br><i>Lähellä Koblenzin asemaa.</i>' },
+];
+
+castles.forEach(c => {
+  const iLat = c.lat + c.dLat, iLon = c.lon + c.dLon;
+  L.polyline([[c.lat, c.lon], [iLat, iLon]], {
+    color: '#ffd580', weight: 4, dashArray: '9, 7', opacity: 0.95
+  }).addTo(layerCastles).bindPopup(c.popup);
+  L.circleMarker([c.lat, c.lon], { radius: 7, color: '#ffd580', weight: 2.5, fillColor: '#2d1a06', fillOpacity: 1 }).addTo(layerCastles).bindPopup(c.popup);
+  const iconHtml = `<div style="text-align:center;filter:drop-shadow(0 2px 8px #000)"><div class="castle-icon">🏰</div><div class="castle-name-tag">${c.name}</div></div>`;
+  const icon = L.divIcon({ html: iconHtml, className: '', iconAnchor: [24, 24] });
+  L.marker([iLat, iLon], { icon, zIndexOffset: 300 }).addTo(layerCastles).bindPopup(c.popup);
+});
+
+// ── ACCOMMODATION ─────────────────────────────────────────────────────────────
+const accommodation = [
+  { lat:49.988, lon:7.931, dLat:0.009, dLon:0.016, type:'planned', name:'Majoitus — Rüdesheim',
+    popup:'<b>🏨 Majoitus — Rüdesheim</b><br>Yöt 1–5, Rüdesheim am Rhein.' },
+  { lat:50.102, lon:8.698, dLat:0.010, dLon:0.018, type:'planned', name:'Majoitus — Frankfurt',
+    popup:'<b>🏨 Majoitus — Frankfurt</b><br>Yöt 6–7, Frankfurt (Sachsenhausen).<br><i>Römerbergiin ~2 km / raitiovaunu 16 tai kävely ~25 min.</i>' },
+];
+
+const SEP = '<hr style="margin:5px 0;border:none;border-top:1px solid #555">';
+accommodation.forEach(a => {
+  const iLat = a.lat + a.dLat, iLon = a.lon + a.dLon;
+  const bg = '#2e7d32';
+  L.polyline([[a.lat, a.lon], [iLat, iLon]], { color: '#2196f3', weight: 3, opacity: 0.9 }).addTo(layerAccommodation).bindPopup(a.popup);
+  L.circleMarker([a.lat, a.lon], { radius: 5, color: '#fff', weight: 2, fillColor: bg, fillOpacity: 1 }).addTo(layerAccommodation).bindPopup(a.popup);
+  const icon = L.divIcon({ html: `<div class="accom-pentagon" style="background:${bg}">🏨</div>`, className: '', iconAnchor: [20, 40] });
+  L.marker([iLat, iLon], { icon, zIndexOffset: 450 }).addTo(layerAccommodation).bindPopup(a.popup);
+});
+
+// ── POINTS OF INTEREST ────────────────────────────────────────────────────────
+const pois = [
+  // Rüdesheim
+  { lat:49.9800, lon:7.9258, color:'#e91e63', emoji:'🍷',
+    popup:'<b>🍷 RheinWeinWelt KG — viininmaistelu</b><br>20 € = 20 annosta (0,4 l/annos).<br>Drosselgassen alueella, Rüdesheimin sydämessä.' },
+  { lat:49.9796, lon:7.9280, color:'#ff5722', emoji:'🍕',
+    popup:'<b>🍕 Pizza Treff Da Moni</b><br>Pizzaa, schnitzelia ja olutta — hyvä hinta-laatu.<br>Suositeltava arkiravintola.' },
+  { lat:49.9907, lon:7.9030, color:'#9c27b0', emoji:'🗿',
+    popup:'<b>🗿 Niederwald-muistomerkki</b><br>Jättiläinen Germania-patsas yllä Rüdesheimissä.<br>Gondolilla ylös tai kävellen. Upeat näkymät Reiniin.' },
+  // Wiesbaden
+  { lat:50.0820, lon:8.2369, color:'#ff9800', emoji:'🌆',
+    popup:'<b>🌆 Wiesbaden — päiväretki</b><br>Hessenin pääkaupunki, kylpyläkaupunki.<br>Kävelykatu Wilhelmstraße, Kurhaus (kasinon alue), kuuma lähteet.<br><i>RB10: ~30 min Rüdesheimistä.</i>' },
+  // Frankfurt
+  { lat:50.1109, lon:8.6822, color:'#2196f3', emoji:'🏛️',
+    popup:'<b>🏛️ Römerberg-aukio</b><br>Frankfurtin vanhan kaupungin sydän. Puolipuiset talot (Fachwerk).<br>Historiallinen raatihuone Römer, Eiserner Steg -silta lähellä.' },
+  { lat:50.1126, lon:8.6868, color:'#2196f3', emoji:'⛪',
+    popup:'<b>⛪ Kaiserdom St. Bartholomäus</b><br>Keisarillinen tuomiokirkko, Frankfurtin symboli.<br>Kiipeä torniin: upeat näkymät vanhaankaupunkiin ja Mainiin.<br><i>Tornin kiipeäminen ~3 €.</i>' },
+  { lat:50.1069, lon:8.6882, color:'#2196f3', emoji:'🌉',
+    popup:'<b>🌉 Eiserner Steg</b><br>Rautainen jalankävelysilta Mainin yli, 1868.<br>Lukkojen täyttämä kaide — romanttinen kohde.<br>Hyvät näkymät Sacharsenhauser Uferille.' },
+  { lat:50.1173, lon:8.6856, color:'#4caf50', emoji:'🌿',
+    popup:'<b>🌿 Garten des Himmlischen Friedens</b><br>Kiinalainen puutarha Bethmann Parkin sisällä.<br>Ainutlaatuinen Euroopassa — Shanghai lahjoitti 1989.<br><i>Lähellä Zeil-ostoskeskusta.</i>' },
+  { lat:50.1263, lon:8.6611, color:'#4caf50', emoji:'🌳',
+    popup:'<b>🌳 Grüneburg Park</b><br>Frankfurtin laajin viheralue, vapaa pääsy.<br>Rento piknik-paikka kaupungin keskustassa.' },
+  { lat:50.1253, lon:8.6546, color:'#4caf50', emoji:'🌺',
+    popup:'<b>🌺 Palmengarten</b><br>Yksi Saksan suurimmista kasvitieteellisistä puutarhoista.<br>Sisäänpääsy: 9 €. Trooppiset kasvihuoneet.<br><i>Vieressä Botanischer Garten — ilmainen.</i>' },
+  { lat:50.1073, lon:8.6611, color:'#ff5722', emoji:'🍺',
+    popup:'<b>🍺 Das Wirtshaus — Frankfurt Hbf</b><br>Ravintola Frankfurtin pääaseman sisällä, laiturin 18 takana.<br>Perinteinen saksalainen ruoka. Käytännöllinen ennen junaa.' },
+  { lat:50.13244941706825, lon:8.748055240488025, color:'#d32f2f', emoji:'🏍️',
+    popup:'<b>🏍️ Louis — moottoripyörävarusteet</b><br>Wächtersbacher Str. 76, 60386 Frankfurt (Fechenheim)<br>Ma–La 9–20, sunnuntaisin kiinni. Puh. 069 490 9747.<br><i>Raitiovaunu 11 (Fechenheimin suunta) Hauptbahnhofilta ~25 min → pysäkki Wächtersbacher Straße, ~3 min kävely. Kuuluu Deutschland Ticketiin.</i>' },
+];
+
+pois.forEach(p => {
+  const icon = L.divIcon({
+    html: `<div class="poi-dot" style="background:${p.color}">${p.emoji}</div>`,
+    className: '', iconAnchor: [15, 15]
+  });
+  L.marker([p.lat, p.lon], { icon, zIndexOffset: 350 }).addTo(layerPOI).bindPopup(p.popup);
+});
+
+// ── POTENTIAL DESTINATIONS ────────────────────────────────────────────────────
+const potentials = [
+  { lat:50.94130, lon:6.95830, name:'Kölner Dom',
+    popup:'<b>⭐ Kölner Dom — Köln</b><br>Yksi maailman hienoimmista goottisista katedraaleista. UNESCO-kohde.<br>Saksan eniten vierailtu nähtävyys.<br><i>~1h 15min Koblenzista junalla. Helppo jatkaa Koblenz-päivästä.</i>' },
+  { lat:49.41020, lon:8.71520, name:'Heidelberg',
+    popup:'<b>⭐ Heidelberg Schloss</b><br>Ikoninen linna ja vanha yliopistokaupunki.<br>Yksi Saksan tunnetuimmista matkakohteista.<br><i>~1h Frankfurtista junalla. Sopii Frankfurt-vaiheen päiväretkeksi (16.–18.7.).</i>' },
+  { lat:49.75400, lon:6.64110, name:'Trier',
+    popup:'<b>⭐ Trier — Porta Nigra</b><br>Saksan vanhin kaupunki. Roomalaiset monumentit UNESCO-kohteena.<br>Porta Nigra, amfiteatteri, keisarilliset kylpylät.<br><i>~1h 45min Koblenzista junalla. Koko päivän retki.</i>' },
+];
+
+potentials.forEach(p => {
+  const iconHtml = `<div style="text-align:center;filter:drop-shadow(0 2px 8px #000)"><div class="potential-icon"><span>⭐</span></div><div class="potential-name-tag">${p.name}</div></div>`;
+  const icon = L.divIcon({ html: iconHtml, className: '', iconAnchor: [23, 23] });
+  L.marker([p.lat, p.lon], { icon, zIndexOffset: 280 }).addTo(layerPotential).bindPopup(p.popup);
+});
+
+// ── LAYER CONTROL ─────────────────────────────────────────────────────────────
+L.control.layers(null, {
+  '🛣️ Reitit &amp; vaiheyhteydet':    layerRoutes,
+  '⚓ Rein-laakson pysäkit':            layerRhineStops,
+  '🏰 Linnat':                          layerCastles,
+  '📍 Nähtävyydet &amp; ravintolat':    layerPOI,
+  '🏨 Majoitukset':                     layerAccommodation,
+  '🚆 Asemat':                          layerMarkers,
+  '⭐ Potentiaaliset kohteet':          layerPotential,
+}, { position: 'topright', collapsed: true }).addTo(map);
+
+L.control.scale({ imperial: false, metric: true, position: 'bottomleft' }).addTo(map);
+
+// Fit to main area
+map.fitBounds(L.latLngBounds([
+  [49.92, 7.55], [50.38, 8.75]
+]), { padding: [20, 20] });
+setTimeout(() => map.invalidateSize(), 300);
+
+// ── LEGEND TOGGLE ─────────────────────────────────────────────────────────────
+function toggleLegend() {
+  const body = document.getElementById('legend-body');
+  const toggle = document.getElementById('legend-toggle');
+  const c = body.classList.toggle('collapsed');
+  toggle.textContent = c ? '▼' : '▲';
+}
+if (window.innerWidth <= 600) toggleLegend();
+
+// ── GPS ───────────────────────────────────────────────────────────────────────
+let gpsMarker = null, gpsCircle = null, gpsWatch = null, gpsTracking = false, gpsFirstFix = true;
+
+const gpsIcon = L.divIcon({
+  html: '<div class="gps-marker"><div class="gps-marker-ring"></div><div class="gps-marker-dot"></div></div>',
+  className: '', iconAnchor: [10, 10]
+});
+
+function toggleGPS() {
+  const btn = document.getElementById('gps-btn');
+  if (gpsTracking) {
+    if (gpsWatch !== null) { navigator.geolocation.clearWatch(gpsWatch); gpsWatch = null; }
+    if (gpsMarker) { map.removeLayer(gpsMarker); gpsMarker = null; }
+    if (gpsCircle) { map.removeLayer(gpsCircle); gpsCircle = null; }
+    gpsTracking = false; gpsFirstFix = true;
+    btn.className = ''; btn.title = 'Näytä sijaintisi kartalla';
+  } else {
+    if (!navigator.geolocation) { alert('Selaimesi ei tue sijaintipalveluita.'); return; }
+    gpsTracking = true;
+    btn.classList.add('searching');
+    btn.title = 'Pysäytä sijaintiseuranta';
+    gpsWatch = navigator.geolocation.watchPosition(onGPSSuccess, onGPSError, {
+      enableHighAccuracy: true, timeout: 15000, maximumAge: 0
+    });
+  }
+}
+
+function onGPSSuccess(pos) {
+  const lat = pos.coords.latitude, lon = pos.coords.longitude, acc = pos.coords.accuracy;
+  document.getElementById('gps-btn').className = 'active';
+  const popup = `<b>📍 Sijaintisi</b><br>Tarkkuus: ±${Math.round(acc)} m`;
+  if (!gpsMarker) {
+    gpsMarker = L.marker([lat, lon], { icon: gpsIcon, zIndexOffset: 2000 }).addTo(map).bindPopup(popup);
+    gpsCircle = L.circle([lat, lon], { radius: acc, color: '#4a90d9', fillColor: '#4a90d9', fillOpacity: 0.08, weight: 1 }).addTo(map);
+  } else {
+    gpsMarker.setLatLng([lat, lon]).getPopup().setContent(popup);
+    gpsCircle.setLatLng([lat, lon]).setRadius(acc);
+  }
+  if (gpsFirstFix) { map.setView([lat, lon], Math.max(map.getZoom(), 12)); gpsFirstFix = false; }
+}
+
+function onGPSError(err) {
+  document.getElementById('gps-btn').className = '';
+  gpsTracking = false;
+  if (gpsWatch !== null) { navigator.geolocation.clearWatch(gpsWatch); gpsWatch = null; }
+  const msgs = {
+    1: 'Sijainnin käyttö estetty. Salli sijainti selaimen asetuksissa.',
+    2: 'Sijaintia ei voitu määrittää.',
+    3: 'Sijaintipalvelu aikakatkaisu. Yritä uudelleen.'
+  };
+  alert(msgs[err.code] || 'Sijaintivirhe.');
+}
+</script>
+</body>
+</html>

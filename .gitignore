@@ -1,0 +1,11 @@
+# Ignore everything by default — this repo publishes ONE public file.
+/*
+
+# Re-include only what should be pushed:
+!/.gitignore
+!/Saksa26.html
+
+# Everything else stays local and private:
+#   Saksa26_Kartta.html   (full-detail private map: hotel names, addresses, lockbox note)
+#   CLAUDE.md, Frankfurt.txt, Frankfurt_loma.odt, Trip   (private plan + exact dates)
+#   .claude/   (local settings)
