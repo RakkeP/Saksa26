@@ -78,6 +78,7 @@
 <div id="header">
   <h1>SAKSA26 — Frankfurt &amp; Rein-laakso</h1>
   <p>7 yötä &nbsp;·&nbsp; Rüdesheim 5 yötä + Frankfurt 2 yötä &nbsp;·&nbsp; Deutschland Ticket &nbsp;·&nbsp; Rein-laakson linnat &amp; viini</p>
+  <p style="color:#ffcc66">⚠️ RB10 remontissa 10.7.–12.12.2026 — oikean rannan junat korvattu busseilla (10E). Vasen ranta (Bacharach/Oberwesel/Sankt Goar) auki, sinne lautalla.</p>
   <button id="gps-btn" onclick="toggleGPS()" title="Näytä sijaintisi kartalla">📍 Sijainti</button>
 </div>
 <div id="map"></div>
@@ -107,7 +108,7 @@ const layerPotential     = L.layerGroup().addTo(map);
 const phases = [
   {
     label: 'Saapuminen — Lentokenttä → Rüdesheim',
-    sub: 'S9 + RB10, ~1h 23min',
+    sub: 'S8/S9 → Wiesbaden, sitten korvausbussi 10E (RB10 remontissa)',
     color: '#9e9e9e',
     coords: [
       [50.0526, 8.5698],  // Frankfurt Airport Regionalbf T1
@@ -124,7 +125,7 @@ const phases = [
   },
   {
     label: 'Rein-laakso — päiväretki pohjoiseen',
-    sub: 'Rüdesheim → Boppard, oikea ranta (RB10)',
+    sub: 'Rüdesheim → Boppard — korvausbussi 10E (RB10 suljettu)',
     color: '#4caf50',
     coords: [
       [49.9793, 7.9245],  // Rüdesheim (oikea ranta)
@@ -137,7 +138,7 @@ const phases = [
   },
   {
     label: 'Päiväretki — Marksburg &amp; Koblenz',
-    sub: 'Boppard → Braubach → Koblenz, RB10',
+    sub: 'Boppard → Braubach → Koblenz — korvausbussi 10E',
     color: '#ce93d8',
     coords: [
       [50.2313, 7.5918],  // Boppard
@@ -147,7 +148,7 @@ const phases = [
   },
   {
     label: 'Päiväretki — Wiesbaden',
-    sub: 'Rüdesheim → Wiesbaden, RB10',
+    sub: 'Rüdesheim → Wiesbaden — korvausbussi 10E',
     color: '#ff9800',
     coords: [
       [49.9793, 7.9245],  // Rüdesheim
@@ -158,7 +159,7 @@ const phases = [
   },
   {
     label: 'Rüdesheim → Frankfurt',
-    sub: 'RB10 + S9, yö 5→6',
+    sub: 'Korvausbussi 10E → Wiesbaden, sitten S8/S9 · yö 5→6',
     color: '#9e9e9e',
     coords: [
       [49.9793, 7.9245],  // Rüdesheim
